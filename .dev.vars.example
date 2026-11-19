@@ -1,0 +1,5 @@
+# Kopiraj u .dev.vars (gitignoran). U produkciji: npx wrangler secret put <IME>
+# Token bota (BotFather) koji objavljuje u kanale podcasta
+TELEGRAM_BOT_TOKEN=
+# Bearer za /podcasts/* (petlja i provisioner na Macu ga čitaju iz .dev.vars)
+API_TOKEN=

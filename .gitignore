@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.dev.vars
+.DS_Store
+# Koje epizode su već u kojem kanalu. Lokalno knjigovodstvo petlje, ne dijeljeno stanje.
+.state/
+# MTProto sesija Domovina Telegram računa = lozinka. Nikad u repo.
+scripts/provision/.env

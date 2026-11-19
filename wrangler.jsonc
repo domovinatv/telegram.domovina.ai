@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "telegram-domovina-ai",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-25",
+
+  // Pinano namjerno: `wrangler whoami` vidi više računa, a većina je klijentska.
+  "account_id": "7dc7167b7e2e00923bfa7cd697df14e4",
+
+  "workers_dev": false,
+  "routes": [{ "pattern": "telegram.domovina.ai", "custom_domain": true }],
+
+  // YouTube channel_id → Telegram kanal podcasta (tg:podcast:<UC…>), piše ga scripts/provision.
+  "kv_namespaces": [
+    { "binding": "PODCASTS", "id": "fca9bce8cc9a4a17aa7a5ed538e74e57", "preview_id": "e072e62aae72404db7224de5532d2f85" }
+  ],
+
+  "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
+}
