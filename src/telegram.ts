@@ -19,12 +19,15 @@ interface TelegramResponse {
   ok?: boolean;
   description?: string;
   parameters?: { retry_after?: number };
+  result?: { message_id?: number };
 }
 
 export interface SendResult {
   ok: boolean;
   status: number;
   description?: string;
+  /** message_id poslane poruke (za odgovore u niti komentara). */
+  messageId?: number;
 }
 
 /**
@@ -38,9 +41,9 @@ export async function sendMessage(
   botToken: string,
   chatId: string,
   text: string,
-  options: { previewUrl?: string; silent?: boolean; tries?: number } = {},
+  options: { previewUrl?: string; silent?: boolean; tries?: number; replyTo?: number } = {},
 ): Promise<SendResult> {
-  const { previewUrl, silent = false, tries = 4 } = options;
+  const { previewUrl, silent = false, tries = 4, replyTo } = options;
   const body = text.length > MAX_MESSAGE ? `${text.slice(0, MAX_MESSAGE)}\n…` : text;
   const linkPreview = previewUrl
     ? { url: previewUrl, prefer_large_media: true, show_above_text: false }
@@ -60,11 +63,12 @@ export async function sendMessage(
           parse_mode: "HTML",
           link_preview_options: linkPreview,
           disable_notification: silent,
+          ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: false } } : {}),
         }),
       });
       status = response.status;
       payload = (await response.json().catch(() => ({}))) as TelegramResponse;
-      if (response.ok && payload.ok) return { ok: true, status };
+      if (response.ok && payload.ok) return { ok: true, status, messageId: payload.result?.message_id };
     } catch (error) {
       console.warn(JSON.stringify({ event: "telegram_network_error", attempt, message: String(error) }));
     }
@@ -78,4 +82,17 @@ export async function sendMessage(
   }
   console.error(JSON.stringify({ event: "telegram_send_failed", chatId, ...last }));
   return last;
+}
+
+/**
+ * Postavlja webhook bota na ovaj Worker. Treba samo poruke (automatsko
+ * prosljeđivanje objave kanala u grupu za raspravu), ništa drugo.
+ */
+export async function setWebhook(botToken: string, url: string, secret: string): Promise<TelegramResponse> {
+  const response = await fetch(`${API}/bot${botToken}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, secret_token: secret, allowed_updates: ["message"], drop_pending_updates: true }),
+  });
+  return (await response.json().catch(() => ({}))) as TelegramResponse;
 }

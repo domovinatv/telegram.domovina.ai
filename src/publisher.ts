@@ -28,7 +28,7 @@ export async function startPublish(env: Env, request: PublishRequest): Promise<P
   try {
     await env.PUBLISH.create({
       id: instanceId(request.videoId, request.youtubeChannelId),
-      params: { videoId: request.videoId, chatId: podcast.chatId },
+      params: { videoId: request.videoId, chatId: podcast.chatId, discussionChatId: podcast.discussionChatId },
     });
     return "started";
   } catch (error) {

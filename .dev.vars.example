@@ -3,3 +3,5 @@
 TELEGRAM_BOT_TOKEN=
 # Bearer za /podcasts/* (petlja i provisioner na Macu ga čitaju iz .dev.vars)
 API_TOKEN=
+# Tajna koju Telegram šalje u X-Telegram-Bot-Api-Secret-Token na /telegram/webhook
+TELEGRAM_WEBHOOK_SECRET=
