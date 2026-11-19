@@ -104,7 +104,7 @@ async function retitle(botApiId: string, title: string): Promise<void> {
       await client.invoke(new Api.messages.EditChatAbout({ peer: channel, about: ABOUT[lang!] }));
       log("    ✓ opis");
     } catch (error) {
-      if (!/CHAT_ABOUT_NOT_MODIFIED/i.test(String(error))) throw error;
+      if (!/CHAT_ABOUT_NOT_MODIFIED|ChatAboutNotModified/i.test(String(error))) throw error;
     }
   }
 }
