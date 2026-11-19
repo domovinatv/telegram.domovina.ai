@@ -40,11 +40,12 @@ flowchart LR
 
 Kanal nosi ime tuđeg podcasta, pa nastaje **samo kad podcast pristane**, i tada se
 stvara jednom, ručno: `scripts/provision` → `npm run create-channel`. Postojanje
-kanala JE zapis pristanka; nema zasebne zastavice. Ime je „<Podcast> · domovina.ai”.
+kanala JE zapis pristanka; nema zasebne zastavice. Ime je „<Podcast> 🇭🇷”, grupa „<Podcast> 🇭🇷 · rasprava”
+(pravilo u `scripts/provision/src/naming.ts`).
 U kanal idu samo epizode objavljene od dana stvaranja kanala. Vlasnik koji u
 postavkama kanala isključi `push_notifications` (ili povuče kanal) utišava i Telegram.
 
-**Engleski par** („<Podcast> · domovina.ai English” + „<Podcast> · discussion”) je
+**Engleski par** („<Podcast> 🇬🇧” + „<Podcast> 🇬🇧 · discussion”) je
 zaseban pristanak: HR kanal ne povlači EN. Stvara se istom naredbom s `--lang en`.
 Tekst je iz engleskog prijevoda, linkovi na `domovina.ai/v/<id>/en` i
 `/v/<id>/t/<sec>/en`. Isključen `english_translation` utišava samo EN kanal.

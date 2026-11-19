@@ -1,12 +1,13 @@
 // Telegram kanal + grupa za raspravu za JEDAN podcast (MTProto, teleproto).
 //
-//   npm run create-channel -- <YouTube channel_id UC…> --title "Naziv · domovina.ai"
+//   npm run create-channel -- <YouTube channel_id UC…> --name "Podcast"
 //                              [--lang hr|en] [--avatar <url>] [--about "opis"] [--public <username>]
 //                              [--slow 10] [--dry-run] [--json]
 //
-// --lang en stvara ENGLESKI par („Naziv · domovina.ai English” + „Naziv · discussion”,
-// engleski opis) i upisuje ga kao `?lang=en`. Zaseban je pristanak (odluka E2):
-// HR kanal ne povlači EN, a EN se stvara samo kad ga podcast izričito želi.
+// Naslove slaže src/naming.ts („Podcast 🇭🇷” + „Podcast 🇭🇷 · rasprava”). --lang en
+// stvara ENGLESKI par („Podcast 🇬🇧” + „Podcast 🇬🇧 · discussion”, engleski opis) i
+// upisuje ga kao `?lang=en`. Zaseban je pristanak (odluka E2): HR kanal ne povlači
+// EN, a EN se stvara samo kad ga podcast izričito želi.
 //
 // Zašto MTProto: Bot API nema metodu za stvaranje grupe ni kanala. Bot domovina.ai
 // (TG_BOT_USERNAME) samo objavljuje u kanal u koji ga ovdje promoviramo u admina.
@@ -34,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { Api, TelegramClient } from "teleproto";
 import { CustomFile } from "teleproto/client/uploads";
 import { StringSession } from "teleproto/sessions";
+import { ABOUT, chatTitles, parseLang, VISIBLE_TITLE } from "./naming.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../../..");
@@ -45,41 +47,42 @@ const positional: string[] = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]!;
   if (a === "--dry-run" || a === "--json") flags.set(a, true);
-  else if (["--title", "--lang", "--avatar", "--about", "--public", "--slow"].includes(a)) flags.set(a, argv[++i] ?? "");
+  else if (["--name", "--title", "--lang", "--avatar", "--about", "--public", "--slow"].includes(a)) flags.set(a, argv[++i] ?? "");
   else positional.push(a);
 }
 
 const log = (...parts: unknown[]) => console.error(...parts);
 const usage =
-  'Upotreba: npm run create-channel -- <UC…> --title "Naziv · domovina.ai" [--lang hr|en] [--avatar <url>] [--about "…"] [--public <username>] [--slow 10] [--dry-run] [--json]';
+  'Upotreba: npm run create-channel -- <UC…> --name "Podcast" [--lang hr|en] [--avatar <url>] [--about "…"] [--public <username>] [--slow 10] [--dry-run] [--json]';
 
 const youtubeChannelId = positional[0] ?? "";
 if (!/^UC[A-Za-z0-9_-]{22}$/.test(youtubeChannelId)) {
   log(`Nevaljan YouTube channel_id '${youtubeChannelId}'.\n${usage}`);
   process.exit(1);
 }
-const title = String(flags.get("--title") ?? "").trim();
-if (!title) {
-  log(`Nedostaje --title.\n${usage}`);
+if (flags.has("--title")) {
+  log(`--title više ne postoji: naslove slaže src/naming.ts iz --name (ime podcasta).\n${usage}`);
   process.exit(1);
 }
-const lang = String(flags.get("--lang") ?? "hr");
-if (lang !== "hr" && lang !== "en") {
-  log(`Nevaljan --lang '${lang}' — hr ili en.\n${usage}`);
+const lang = parseLang(flags.get("--lang"));
+if (!lang) {
+  log(`Nevaljan --lang '${String(flags.get("--lang"))}' — hr ili en.\n${usage}`);
   process.exit(1);
 }
-if (lang === "en" && !/English$/.test(title)) {
-  log(`Engleski kanal se zove „<Podcast> · domovina.ai English”; --title '${title}' ne završava s „English”.`);
+let titles: { channel: string; discussion: string };
+try {
+  titles = chatTitles(String(flags.get("--name") ?? ""), lang);
+} catch (error) {
+  log(`${(error as Error).message}\n${usage}`);
   process.exit(1);
 }
-const podcastName = title.replace(/\s*·\s*domovina\.ai(\s+English)?$/, "");
-const discussionTitle = `${podcastName} · ${lang === "en" ? "discussion" : "rasprava"}`;
+const title = titles.channel;
+const discussionTitle = titles.discussion;
+if ([...discussionTitle].length > VISIBLE_TITLE) {
+  log(`⚠ „${discussionTitle}” je dulje od ${VISIBLE_TITLE} znakova; lista chatova na mobitelu ga reže.`);
+}
 const avatarUrl = (flags.get("--avatar") as string | undefined) || null;
-const about =
-  (flags.get("--about") as string | undefined) ||
-  (lang === "en"
-    ? "Every new episode from domovina.ai in English, chapters in the comments: each link opens the exact moment in the recording."
-    : "Poglavlja svake nove epizode s domovina.ai: svaka poruka vodi točno na trenutak u snimci.");
+const about = (flags.get("--about") as string | undefined) || ABOUT[lang];
 const query = lang === "en" ? "?lang=en" : "";
 const publicUsername = (flags.get("--public") as string | undefined) || null;
 if (publicUsername && !/^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$/.test(publicUsername)) {

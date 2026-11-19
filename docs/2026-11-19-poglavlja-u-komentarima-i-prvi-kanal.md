@@ -1,14 +1,17 @@
 # Poglavlja u komentarima i prvi kanal (DOMOVINA)
 
-Datum: 19. 11. 2026. Status: **prvi kanal radi** (19. 11. 22:12): kanal „DOMOVINA · domovina.ai”
-(`-1003930493648`, https://t.me/+A91C5KOxeFBhNjA0) + grupa „DOMOVINA · rasprava”
+Datum: 19. 11. 2026. Status: **prvi kanal radi** (19. 11. 22:12): kanal „DOMOVINA 🇭🇷”
+(`-1003930493648`, https://t.me/+A91C5KOxeFBhNjA0) + grupa „DOMOVINA 🇭🇷 · rasprava”
 (`-1004444601313`, odmah stvorena kao supergrupa). Test `QkcpHsj43rE`: objava u kanalu i 42
 poglavlja u komentarima, Workflow `Completed`. **Privremeno je vlasnik osobni račun**; kad
 stigne SIM za Domovina račun, vlasništvo se prebacuje (§7).
 
 **Engleski par izgrađen i deployan** (19. 11. kasno navečer, §8): kod u oba Workera
-(`telegram-domovina-ai`, pa `domovina-push`), provisioner zna `--lang en`. **EN kanal za
-DOMOVINA još nije stvoren**: čeka izričitu potvrdu, pa ručni test s `QkcpHsj43rE`.
+(`telegram-domovina-ai`, pa `domovina-push`), provisioner zna `--lang en`. EN kanal
+„DOMOVINA 🇬🇧” (`-1004373383859`, https://t.me/+3ePgcPaULbhjOTJk) + grupa
+„DOMOVINA 🇬🇧 · discussion” (`-1004438892902`) stvoreni 19. 11. 22:33, isto osobnim računom (§7);
+EN test `QkcpHsj43rE` `Completed` (prijevod nađen pri prvoj provjeri, 42 poglavlja u komentarima).
+Nazivi su preimenovani po pravilu iz §9 (prvotno „DOMOVINA · domovina.ai [English]”).
 
 ## 1. Odluka
 
@@ -75,9 +78,9 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  K["Kanal „DOMOVINA · domovina.ai”"] --> O["🎙 objava epizode<br/>naslov, sažetak, link na domovina.ai<br/>„42 poglavlja u komentarima ispod objave”"]
+  K["Kanal „DOMOVINA 🇭🇷”"] --> O["🎙 objava epizode<br/>naslov, sažetak, link na domovina.ai<br/>„42 poglavlja u komentarima ispod objave”"]
   O --> C["💬 42 komentara"]
-  C --> N["nit u grupi „DOMOVINA · rasprava”"]
+  C --> N["nit u grupi „DOMOVINA 🇭🇷 · rasprava”"]
   N --> P1["⏱ 0:00 · uvod<br/>domovina.ai/v/id/t/0"]
   N --> P2["⏱ 4:12 · ...<br/>domovina.ai/v/id/t/252"]
   N --> R["komentari slušatelja"]
@@ -101,7 +104,7 @@ Svaki link vodi na domovina.ai, nikad na YouTube.
 | YouTube `channel_id` | `UCXXhnehl2pss0uYdfLRDtyw` |
 | Kanal pipelinea | `domovina_tv` |
 | Avatar | `https://cdn.domovina.ai/channels/images/domovina_tv/avatar_square.jpg` |
-| Naziv kanala | „DOMOVINA · domovina.ai”, grupa „DOMOVINA · rasprava” |
+| Naziv kanala | „DOMOVINA 🇭🇷”, grupa „DOMOVINA 🇭🇷 · rasprava” (§9) |
 | Test epizoda | `QkcpHsj43rE` (AI u praksi: Claude Code uživo) |
 
 ```mermaid
@@ -123,7 +126,7 @@ Koraci:
 2. **Suho pokretanje:**
    ```bash
    npm run create-channel -- UCXXhnehl2pss0uYdfLRDtyw \
-     --title "DOMOVINA · domovina.ai" \
+     --name DOMOVINA \
      --avatar https://cdn.domovina.ai/channels/images/domovina_tv/avatar_square.jpg \
      --dry-run
    ```
@@ -171,7 +174,7 @@ Koraci:
 
 | # | Odluka |
 |---|---|
-| E1 | Zaseban par kanal + grupa po jeziku: „<Podcast> · domovina.ai English” i „<Podcast> · discussion”. |
+| E1 | Zaseban par kanal + grupa po jeziku. Naziv po §9: „<Podcast> 🇬🇧” i „<Podcast> 🇬🇧 · discussion” (prvotno „<Podcast> · domovina.ai English”). |
 | E2 | **Zaseban izbor podcasta**: HR kanal ne povlači EN automatski; EN par se stvara samo kad podcast pristane i na njega. |
 | E3 | Tekst iz `article.en.json` / `summary.en.json` (nisu inline u `episode.json`, čitaju se iz `data/<id>/`), poruka „N chapters in the comments below”, linkovi `domovina.ai/v/<id>/en` i `domovina.ai/v/<id>/t/<sec>/en` (provjereno: obje rute daju engleski og:title). |
 | E4 | EN Workflow čeka prijevod (stiže nakon HR članka, za Magisterium kanale i satima kasnije): `step.sleep` + provjera do 48 h, pa odustane bez slanja. |
@@ -183,8 +186,8 @@ flowchart LR
   P -->|"RPC lang: en<br/>osim ako je isključen<br/>english_translation"| T
   T --> HR["Workflow HR<br/>ep-video-UC, odmah"]
   T --> EN["Workflow EN<br/>ep-video-UC-en<br/>čeka article.en.json do 48 h"]
-  HR --> K1["DOMOVINA · domovina.ai"]
-  EN --> K2["DOMOVINA · domovina.ai English"]
+  HR --> K1["DOMOVINA 🇭🇷"]
+  EN --> K2["DOMOVINA 🇬🇧"]
 ```
 
 Podcast s oba jezika troši 4 mjesta od 500 po računu (~125 podcasta).
@@ -200,19 +203,44 @@ Podcast s oba jezika troši 4 mjesta od 500 po računu (~125 podcasta).
 | Sadržaj | Naslov `summary.title_en`, sažetak `abstract_en`, poglavlja `subtitle_en` po istim pravilima kao HR (sekunda iz `screenshot_timestamp`, duplikati van). **Hrvatski tekst nikad ne ide u EN kanal**: poglavlje bez `subtitle_en` je samo vrijeme + link. Prijevod bez `title_en` ili bez ijednog `subtitle_en` = još nije stigao. |
 | Poruke | „🎙 Title … 42 chapters in the comments below. Full episode: https://domovina.ai/v/<id>/en”, poglavlje „⏱ 2:15 · Subtitle” + `…/t/135/en`. |
 | domovina-push | Za svaku epizodu dva poziva, zapisi `sent:tg:<id>` i `sent:tg:en:<id>`. EN utišava `push_notifications` ili `english_translation` (`closeOff` ga gasi i kad je isključen članak ili transkript), zapis `skipped:english_translation`. Limit po ciklusu (`MAX_PER_RUN`) dijele oba jezika. |
-| Provisioner | `npm run create-channel -- <UC> --lang en --title "<Podcast> · domovina.ai English"`; naslov mora završavati s „English”, grupa je „<Podcast> · discussion”, opis na engleskom. |
+| Provisioner | `npm run create-channel -- <UC> --lang en --name "<Podcast>"`; nazive slaže `src/naming.ts` (§9), opis na engleskom. |
 
-### 8.2 Engleski kanal za DOMOVINA (čeka potvrdu)
+### 8.2 Engleski kanal za DOMOVINA (stvoren 19. 11. 22:33)
 
 ```bash
 cd ~/git/domovinatv/telegram.domovina.ai/scripts/provision
 npm run create-channel -- UCXXhnehl2pss0uYdfLRDtyw --lang en \
-  --title "DOMOVINA · domovina.ai English" \
+  --name DOMOVINA \
   --avatar https://cdn.domovina.ai/channels/images/domovina_tv/avatar_square.jpg \
   --dry-run
-# stvarno: ista naredba bez --dry-run, tek uz izričitu potvrdu
+# stvarno: ista naredba bez --dry-run (izvedeno uz potvrdu korisnika)
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   "https://telegram.domovina.ai/podcasts/UCXXhnehl2pss0uYdfLRDtyw/episodes/QkcpHsj43rE?lang=en"
 ```
 
 `QkcpHsj43rE` već ima `article.en.json` (42 poglavlja sa `subtitle_en`), pa EN test ne čeka.
+
+## 9. Pravilo imenovanja (19. 11., primijenjeno na DOMOVINA)
+
+Prvi nazivi („DOMOVINA · domovina.ai English”, „DOMOVINA · rasprava”) u listi chatova na
+mobitelu završavali su trotočkom, a HR i EN par su se razlikovali tek na kraju naslova koji se
+ne vidi. Lista prikaže ~24 znaka.
+
+| | Hrvatski | Engleski |
+|---|---|---|
+| Kanal | `<Podcast> 🇭🇷` | `<Podcast> 🇬🇧` |
+| Grupa za raspravu | `<Podcast> 🇭🇷 · rasprava` | `<Podcast> 🇬🇧 · discussion` |
+| Opis (about) | „domovina.ai · svaka nova epizoda, poglavlja u komentarima…” | „domovina.ai · every new episode in English…” |
+
+- Ime podcasta prvo (po njemu se kanal traži), jezik zastavicom (vidi se i kad se naslov reže),
+  uloga grupe jednom riječju.
+- **domovina.ai nije u naslovu**: stoji u opisu, u imenu bota i u svakom linku.
+- Pravilo živi samo u `scripts/provision/src/naming.ts`; `create-channel` (`--name`, `--title`
+  više ne postoji) i `rename-channel` ga uvoze. Naslov grupe dulji od 24 znaka daje upozorenje.
+- Postojeći par se preimenuje bez novog kanala:
+  `npm run rename-channel -- <UC> --name "<Podcast>" [--lang en] [--about] [--dry-run]`.
+  Mijenja naslove (i uz `--about` opis) kanala i grupe pa upiše novi naslov u mapiranje;
+  `createdAt` ostaje.
+- **Telegram ograničava promjene naslova**: nakon 3 `EditTitle` + 3 `EditChatAbout` zaredom
+  četvrti je dobio `FLOOD_WAIT_670` (~11 min). Skripta je idempotentna (već preimenovano
+  preskače), pa se samo ponovi nakon čekanja. Više podcasta preimenovati s razmakom.

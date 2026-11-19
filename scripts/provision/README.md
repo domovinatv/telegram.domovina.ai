@@ -36,23 +36,34 @@ npm run login           # interaktivno: broj Domovina računa → kod → 2FA; i
 ## Kanal za podcast
 
 ```sh
-npm run create-channel -- <UC…> --title "Naziv · domovina.ai" \
+npm run create-channel -- <UC…> --name "Podcast" \
   --avatar https://cdn.domovina.ai/registry/avatars/<slug>.jpg [--public <username>] [--dry-run]
 ```
 
-Engleski par istog podcasta (zaseban pristanak), ime mora završavati s „English”:
+Nazive slaže `src/naming.ts`: „Podcast 🇭🇷” + „Podcast 🇭🇷 · rasprava”.
+
+Engleski par istog podcasta (zaseban pristanak):
 
 ```sh
-npm run create-channel -- <UC…> --lang en --title "Naziv · domovina.ai English" \
+npm run create-channel -- <UC…> --lang en --name "Podcast" \
   --avatar https://cdn.domovina.ai/registry/avatars/<slug>.jpg --dry-run
 ```
 
-Grupa dobiva ime „Naziv · discussion” i engleski opis; mapiranje ide u
+Nazivi „Podcast 🇬🇧” + „Podcast 🇬🇧 · discussion”, engleski opis; mapiranje ide u
 `tg:podcast:<UC…>:en` (`PUT …?lang=en`).
 
 Ako mapiranje za `<UC…>` (na tom jeziku) već postoji, skripta ga samo ispiše (nema duplikata).
 Pokreće se jednom, ručno, kad podcast pristane: postojanje kanala je zapis
 pristanka. Od tada epizode u kanal šalje `domovina-push` kroz Worker.
+
+## Preimenovanje postojećeg para
+
+```sh
+npm run rename-channel -- <UC…> --name "Podcast" [--lang en] [--about] --dry-run
+```
+
+Isto pravilo iz `src/naming.ts`; mijenja samo nazive (i uz `--about` opis), kanal ostaje.
+Nakon ~6 promjena zaredom Telegram vrati `FLOOD_WAIT` (~11 min): pričekaj i ponovi.
 
 ## Limiti (provjeriti na prvom stvarnom računu)
 

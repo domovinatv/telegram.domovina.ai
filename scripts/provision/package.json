@@ -7,6 +7,7 @@
   "scripts": {
     "login": "tsx src/login.ts",
     "create-channel": "tsx src/create-channel.ts",
+    "rename-channel": "tsx src/rename-channel.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
