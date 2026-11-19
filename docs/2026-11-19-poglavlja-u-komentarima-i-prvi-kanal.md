@@ -1,7 +1,10 @@
 # Poglavlja u komentarima i prvi kanal (DOMOVINA)
 
-Datum: 19. 11. 2026. Status: **kod deployan** (verzija `9efc10c9`), webhook bota postavljen;
-čeka se prijava Domovina Telegram računa i potvrda za stvaranje prvog kanala (§5).
+Datum: 19. 11. 2026. Status: **prvi kanal radi** (19. 11. 22:12): kanal „DOMOVINA · domovina.ai”
+(`-1003930493648`, https://t.me/+A91C5KOxeFBhNjA0) + grupa „DOMOVINA · rasprava”
+(`-1004444601313`, odmah stvorena kao supergrupa). Test `QkcpHsj43rE`: objava u kanalu i 46
+poglavlja u komentarima, Workflow `Completed`. **Privremeno je vlasnik osobni račun**; kad
+stigne SIM za Domovina račun, vlasništvo se prebacuje (§7).
 
 ## 1. Odluka
 
@@ -137,3 +140,18 @@ Koraci:
 - Ugasiti nit poglavlja: `deleteWebhook` bota; Workflow tada nakon ~5 min odustane na
   koraku „nit” (objava epizode ostaje, poglavlja ne idu).
 - Kanal i grupa se brišu samo ručno, s Domovina računa.
+
+## 7. Naučeno na prvom kanalu (19. 11.)
+
+- **Nit stiže kroz webhook za sekundu, ali Workflow je vidi tek nakon ~1–1,5 min**: korak
+  „nit” je pao 3–4 puta prije uspjeha. KV nije odmah vidljiv na lokaciji koja čita, a i
+  promašaj (ključ još ne postoji) se kratko pamti. Pokušaji 5/10/20/40/80 s to pokriju.
+  Ako ikad zatreba brže: webhook javlja instanci kroz `step.waitForEvent` umjesto KV-a.
+- `TogglePreHistoryHidden(false)` na novoj supergrupi vrati `ChatNotModifiedError`: povijest je
+  već vidljiva, upozorenje je bezopasno.
+- Ograničenje računa koje Telegram šalje (`help.getAppConfig`): `channels_limit_default` 500,
+  `channels_limit_premium` 1000.
+- Kanal je stvorio osobni račun (Domovina račun čeka drugi broj; Telegram traži jedan broj po
+  računu). Predaja vlasništva: u kanalu i grupi dodati Domovina račun kao admina, pa
+  „Transfer ownership” (traži 2FA na osobnom računu), zatim novi `npm run login` s Domovina
+  računom i zatvoriti sesiju „domovina-automatic” na osobnom.
