@@ -2,7 +2,7 @@
 
 Datum: 19. 11. 2026. Status: **prvi kanal radi** (19. 11. 22:12): kanal „DOMOVINA · domovina.ai”
 (`-1003930493648`, https://t.me/+A91C5KOxeFBhNjA0) + grupa „DOMOVINA · rasprava”
-(`-1004444601313`, odmah stvorena kao supergrupa). Test `QkcpHsj43rE`: objava u kanalu i 46
+(`-1004444601313`, odmah stvorena kao supergrupa). Test `QkcpHsj43rE`: objava u kanalu i 42
 poglavlja u komentarima, Workflow `Completed`. **Privremeno je vlasnik osobni račun**; kad
 stigne SIM za Domovina račun, vlasništvo se prebacuje (§7).
 
@@ -71,8 +71,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  K["Kanal „DOMOVINA · domovina.ai”"] --> O["🎙 objava epizode<br/>naslov, sažetak, link na domovina.ai<br/>„46 poglavlja u komentarima ispod objave”"]
-  O --> C["💬 46 komentara"]
+  K["Kanal „DOMOVINA · domovina.ai”"] --> O["🎙 objava epizode<br/>naslov, sažetak, link na domovina.ai<br/>„42 poglavlja u komentarima ispod objave”"]
+  O --> C["💬 42 komentara"]
   C --> N["nit u grupi „DOMOVINA · rasprava”"]
   N --> P1["⏱ 0:00 · uvod<br/>domovina.ai/v/id/t/0"]
   N --> P2["⏱ 4:12 · ...<br/>domovina.ai/v/id/t/252"]
@@ -149,6 +149,9 @@ Koraci:
   Ako ikad zatreba brže: webhook javlja instanci kroz `step.waitForEvent` umjesto KV-a.
 - `TogglePreHistoryHidden(false)` na novoj supergrupi vrati `ChatNotModifiedError`: povijest je
   već vidljiva, upozorenje je bezopasno.
+- Izlaz koraka `poglavlje-*` u `wrangler workflows instances describe` je `message_id` poslanog
+  komentara, ne redni broj poglavlja (zadnji je bio 46 za 42 poglavlja: objava je poruka 4).
+  Broj poglavlja = broj koraka `poglavlje-*`.
 - Ograničenje računa koje Telegram šalje (`help.getAppConfig`): `channels_limit_default` 500,
   `channels_limit_premium` 1000.
 - Kanal je stvorio osobni račun (Domovina račun čeka drugi broj; Telegram traži jedan broj po
