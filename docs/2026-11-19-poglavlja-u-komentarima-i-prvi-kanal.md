@@ -158,3 +158,24 @@ Koraci:
   računu). Predaja vlasništva: u kanalu i grupi dodati Domovina račun kao admina, pa
   „Transfer ownership” (traži 2FA na osobnom računu), zatim novi `npm run login` s Domovina
   računom i zatvoriti sesiju „domovina-automatic” na osobnom.
+
+## 8. Engleski par (odluka 19. 11., nije izgrađeno)
+
+| # | Odluka |
+|---|---|
+| E1 | Zaseban par kanal + grupa po jeziku: „<Podcast> · domovina.ai English” i „<Podcast> · discussion”. |
+| E2 | **Zaseban izbor podcasta**: HR kanal ne povlači EN automatski; EN par se stvara samo kad podcast pristane i na njega. |
+| E3 | Tekst iz `article.en.json` / `summary.en.json` (nisu inline u `episode.json`, čitaju se iz `data/<id>/`), poruka „N chapters in the comments below”, linkovi `domovina.ai/v/<id>/en` i `domovina.ai/v/<id>/t/<sec>/en` (provjereno: obje rute daju engleski og:title). |
+| E4 | EN Workflow čeka prijevod (stiže nakon HR članka, za Magisterium kanale i satima kasnije): `step.sleep` + provjera do 48 h, pa odustane bez slanja. |
+| E5 | Vlasnik koji u postavkama kanala isključi `englishTranslation` utišava EN kanal; domovina-push tu postavku zna i prosljeđuje je u RPC. |
+
+```mermaid
+flowchart LR
+  P["domovina-push<br/>nova epizoda"] -->|"RPC, jezici iz postavki"| T["TelegramPublisher"]
+  T --> HR["Workflow HR<br/>odmah"]
+  T --> EN["Workflow EN<br/>čeka article.en.json do 48 h"]
+  HR --> K1["DOMOVINA · domovina.ai"]
+  EN --> K2["DOMOVINA · domovina.ai English"]
+```
+
+Podcast s oba jezika troši 4 mjesta od 500 po računu (~125 podcasta).
