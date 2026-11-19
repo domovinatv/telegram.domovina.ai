@@ -29,8 +29,9 @@ flowchart LR
 
 | Gdje | Što |
 |---|---|
-| `src/publisher.ts` | RPC `TelegramPublisher.publishEpisode`: ima li podcast kanal, je li epizoda novija od kanala, pokreni Workflow (id `ep-<video>-<UC>`, nikad dvaput) |
-| `src/workflow.ts` | Workflow `PublishEpisode`: čita `episode.json` iz R2, objavi epizodu u kanal, pričeka nit (korak „nit”) pa pošalje poglavlja tiho kao komentare; svaki korak memoiziran |
+| `src/publisher.ts` | RPC `TelegramPublisher.publishEpisode`: ima li podcast kanal na tom jeziku, je li epizoda novija od kanala, pokreni Workflow (id `ep-<video>-<UC>`, engleski `ep-<video>-<UC>-en`, nikad dvaput) |
+| `src/workflow.ts` | Workflow `PublishEpisode`: čita `episode.json` (HR) ili `article.en.json` + `summary.en.json` (EN, čeka prijevod do 48 h) iz R2, objavi epizodu u kanal, pričeka nit (korak „nit”) pa pošalje poglavlja tiho kao komentare; svaki korak memoiziran |
+| `src/podcasts.ts` | mapiranje u KV: `tg:podcast:<UC>` (hrvatski), `tg:podcast:<UC>:en` (engleski par) |
 | `src/threads.ts` | webhook hvata objavu koju Telegram proslijedi u grupu za raspravu → KV `tg:thread:<kanal>:<objava>` |
 | `src/index.ts` | HTTP: mapiranje (provisioner), javni `{title, link}`, ručno pokretanje, webhook bota |
 | `scripts/provision/` | MTProto provisioner ([teleproto](https://github.com/sanyok12345/teleproto)), jer Bot API ne može stvoriti kanal ni grupu |
@@ -43,6 +44,11 @@ kanala JE zapis pristanka; nema zasebne zastavice. Ime je „<Podcast> · domovi
 U kanal idu samo epizode objavljene od dana stvaranja kanala. Vlasnik koji u
 postavkama kanala isključi `push_notifications` (ili povuče kanal) utišava i Telegram.
 
+**Engleski par** („<Podcast> · domovina.ai English” + „<Podcast> · discussion”) je
+zaseban pristanak: HR kanal ne povlači EN. Stvara se istom naredbom s `--lang en`.
+Tekst je iz engleskog prijevoda, linkovi na `domovina.ai/v/<id>/en` i
+`/v/<id>/t/<sec>/en`. Isključen `english_translation` utišava samo EN kanal.
+
 Odluka i prvi kanal: [docs/2026-11-19-poglavlja-u-komentarima-i-prvi-kanal.md](docs/2026-11-19-poglavlja-u-komentarima-i-prvi-kanal.md).
 
 ## API
@@ -50,13 +56,13 @@ Odluka i prvi kanal: [docs/2026-11-19-poglavlja-u-komentarima-i-prvi-kanal.md](d
 | Ruta | Auth | Što |
 |---|---|---|
 | `GET /` | – | zdravlje |
-| `GET /public/podcasts/{UC…}` | – | `{title, link}` za gumb „Pridruži se” (CORS, 5 min cache) |
-| `GET /podcasts/{UC…}` | bearer | puno mapiranje |
-| `PUT /podcasts/{UC…}` | bearer | upis mapiranja (provisioner) |
-| `POST /podcasts/{UC…}/episodes/{videoId}` | bearer | ručno pokreni objavu (test prvog kanala) |
+| `GET /public/podcasts/{UC…}` | – | `{title, link, en: {title, link} \| null}` za gumb „Pridruži se” (CORS, 5 min cache); gornja razina je HR, `null` ako HR kanala nema |
+| `GET /podcasts/{UC…}[?lang=en]` | bearer | puno mapiranje (bez `lang` = hrvatski) |
+| `PUT /podcasts/{UC…}[?lang=en]` | bearer | upis mapiranja (provisioner); isti Telegram kanal ne može biti i HR i EN |
+| `POST /podcasts/{UC…}/episodes/{videoId}[?lang=en]` | bearer | ručno pokreni objavu (test kanala) |
 | `POST /telegram/webhook` | `X-Telegram-Bot-Api-Secret-Token` | Telegram: proslijeđena objava → nit poglavlja |
 | `POST /telegram/setup` | bearer | postavi webhook bota na ovaj Worker (jednom, i nakon promjene tajne) |
-| RPC `TelegramPublisher.publishEpisode` | service binding | `{videoId, youtubeChannelId, date}` → `started` / `exists` / `no_channel` / `before_channel` |
+| RPC `TelegramPublisher.publishEpisode` | service binding | `{videoId, youtubeChannelId, date, lang?: "en"}` → `started` / `exists` / `no_channel` / `before_channel` |
 
 ## Postavljanje
 

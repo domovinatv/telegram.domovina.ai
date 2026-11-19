@@ -31,35 +31,59 @@ type Bundle = {
   };
 };
 
+type Section = { subtitle?: string; subtitle_en?: string; screenshot_timestamp?: string };
+type Article = { iterations?: Array<{ sections?: Section[] }> };
+
 /**
  * Poglavlja kakva ih ima živa stranica: svaka sekcija svake iteracije po
  * screenshot_timestampu, sortirano, duplikat sekunde preskočen. Ista pravila
  * kao extractChapters u fetch.domovina.tv/share_to_whatsapp.js.
  */
+function chaptersOf(article: Article, name: (section: Section) => string | undefined): Chapter[] {
+  const seen = new Set<number>();
+  const chapters: Chapter[] = [];
+  for (const iteration of article.iterations ?? []) {
+    for (const section of iteration.sections ?? []) {
+      const sec = toSeconds(section.screenshot_timestamp);
+      if (sec === null || seen.has(sec)) continue;
+      seen.add(sec);
+      chapters.push({ sec, title: (name(section) ?? "").trim() });
+    }
+  }
+  return chapters.sort((a, b) => a.sec - b.sec);
+}
+
+const validUc = (uc: unknown) => (typeof uc === "string" && /^UC[A-Za-z0-9_-]{22}$/.test(uc) ? uc : null);
+
 export function episodeContent(bundle: unknown): EpisodeContent | null {
   const inline = (bundle as Bundle | null)?.inline;
   const article = inline?.["article.json"];
   if (!article?.iterations) return null;
 
-  const seen = new Set<number>();
-  const chapters: Chapter[] = [];
-  for (const iteration of article.iterations) {
-    for (const section of iteration.sections ?? []) {
-      const sec = toSeconds(section.screenshot_timestamp);
-      if (sec === null || seen.has(sec)) continue;
-      seen.add(sec);
-      chapters.push({ sec, title: (section.subtitle ?? "").trim() });
-    }
-  }
-  chapters.sort((a, b) => a.sec - b.sec);
-
   const summary = inline?.["summary.json"];
   const info = inline?.["info.json"];
-  const uc = info?.channel_id;
   return {
     title: summary?.summary?.title_hr || summary?.source?.title || info?.title || "",
     abstract: summary?.summary?.abstract_hr ?? "",
-    youtubeChannelId: typeof uc === "string" && /^UC[A-Za-z0-9_-]{22}$/.test(uc) ? uc : null,
-    chapters,
+    youtubeChannelId: validUc(info?.channel_id),
+    chapters: chaptersOf(article, (section) => section.subtitle),
   };
+}
+
+type EnglishSummary = { summary?: { title_en?: string; abstract_en?: string } };
+
+/**
+ * Engleski sadržaj iz `data/<id>/article.en.json` + `summary.en.json` (nisu
+ * inline u episode.json). Prijevod piše `*_en` polja uz hrvatska; hrvatski tekst
+ * nikad ne ide u engleski kanal, pa poglavlje bez `subtitle_en` ostaje samo
+ * vrijeme + link. Null dok prijevod nije stigao (Workflow tada čeka).
+ */
+export function englishContent(article: unknown, summary: unknown): EpisodeContent | null {
+  const a = article as Article | null;
+  const s = (summary as EnglishSummary | null)?.summary;
+  const title = s?.title_en?.trim();
+  if (!a?.iterations?.length || !title) return null;
+  const chapters = chaptersOf(a, (section) => section.subtitle_en);
+  if (!chapters.some((c) => c.title)) return null;
+  return { title, abstract: s?.abstract_en?.trim() ?? "", youtubeChannelId: null, chapters };
 }

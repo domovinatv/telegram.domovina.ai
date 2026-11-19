@@ -6,15 +6,17 @@
 // Worker pamti mapiranje i objavljuje u kanal kroz bota domovina.ai.
 //
 //   GET  /                               zdravlje
-//   GET  /public/podcasts/{UC…}          {title, link} za gumb „Pridruži se” na domovina.ai (javno, CORS)
-//   GET  /podcasts/{UC…}                 puno mapiranje (bearer)
-//   PUT  /podcasts/{UC…}                 upis mapiranja; zove ga provisioner (bearer)
-//   POST /podcasts/{UC…}/episodes/{videoId}  ručno pokreni objavu epizode (bearer)
+//   GET  /public/podcasts/{UC…}          {title, link, en} za gumb „Pridruži se” na domovina.ai (javno, CORS)
+//   GET  /podcasts/{UC…}[?lang=en]       puno mapiranje (bearer)
+//   PUT  /podcasts/{UC…}[?lang=en]       upis mapiranja; zove ga provisioner (bearer)
+//   POST /podcasts/{UC…}/episodes/{videoId}[?lang=en]  ručno pokreni objavu epizode (bearer)
+//
+// Bez ?lang je hrvatski kanal (kao od početka); ?lang=en je engleski par.
 //   POST /telegram/webhook               Telegram (X-Telegram-Bot-Api-Secret-Token): hvata
 //                                        objavu proslijeđenu u grupu za raspravu → nit poglavlja
 //   POST /telegram/setup                 postavi webhook bota na ovaj Worker (bearer)
 
-import { getPodcastChat, isYoutubeChannelId, putPodcastChat } from "./podcasts";
+import { getPodcastChat, isYoutubeChannelId, parseLang, putPodcastChat } from "./podcasts";
 import { startPublish } from "./publisher";
 import { setWebhook } from "./telegram";
 import { putThreadRoot, threadFromUpdate } from "./threads";
@@ -60,7 +62,8 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const { pathname } = url;
     try {
       if (request.method === "GET" && pathname === "/") return json({ service: "telegram.domovina.ai", ok: true });
 
@@ -88,33 +91,45 @@ export default {
         const cors = { "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300" };
         const id = pathname.slice("/public/podcasts/".length);
         if (!isYoutubeChannelId(id)) return json({ error: "očekujem YouTube channel_id (UC…)" }, 400, cors);
-        const podcast = await getPodcastChat(env.PODCASTS, id);
-        return podcast ? json({ title: podcast.title, link: podcast.link }, 200, cors) : json({ error: "nema kanala" }, 404, cors);
+        const [hr, en] = await Promise.all([getPodcastChat(env.PODCASTS, id, "hr"), getPodcastChat(env.PODCASTS, id, "en")]);
+        if (!hr && !en) return json({ error: "nema kanala" }, 404, cors);
+        // Gornja razina je hrvatski kanal (stari oblik); `en` je engleski par ili null.
+        return json(
+          {
+            title: hr?.title ?? null,
+            link: hr?.link ?? null,
+            en: en ? { title: en.title, link: en.link } : null,
+          },
+          200,
+          cors,
+        );
       }
 
       if (pathname.startsWith("/podcasts/")) {
         if (!(await authorized(request, env))) return json({ error: "unauthorized" }, 401);
         const [id = "", action = ""] = pathname.slice("/podcasts/".length).split("/");
         if (!isYoutubeChannelId(id)) return json({ error: "očekujem YouTube channel_id (UC…)" }, 400);
+        const lang = parseLang(url.searchParams.get("lang"));
+        if (!lang) return json({ error: "lang mora biti hr ili en" }, 400);
 
         if (!action && request.method === "GET") {
-          const podcast = await getPodcastChat(env.PODCASTS, id);
-          return podcast ? json(podcast) : json({ error: "podcast nema Telegram kanal", youtubeChannelId: id }, 404);
+          const podcast = await getPodcastChat(env.PODCASTS, id, lang);
+          return podcast ? json(podcast) : json({ error: "podcast nema Telegram kanal", youtubeChannelId: id, lang }, 404);
         }
         if (!action && request.method === "PUT") {
           const body = await readJson(request);
           if (!body) return json({ error: "neispravan JSON" }, 400);
-          const stored = await putPodcastChat(env.PODCASTS, id, body);
+          const stored = await putPodcastChat(env.PODCASTS, id, body, lang);
           if (typeof stored === "string") return json({ error: stored }, 400);
-          console.log(JSON.stringify({ event: "podcast_chat_stored", youtubeChannelId: id, chatId: stored.chatId }));
+          console.log(JSON.stringify({ event: "podcast_chat_stored", youtubeChannelId: id, lang, chatId: stored.chatId }));
           return json(stored, 201);
         }
         // Ručno pokretanje (prvi kanal, test). Normalno epizode šalje domovina-push kroz RPC.
         const videoId = pathname.split("/")[4] ?? "";
         if (action === "episodes" && request.method === "POST" && isVideoId(videoId)) {
           const date = new Date().toISOString().slice(0, 10);
-          const status = await startPublish(env, { videoId, youtubeChannelId: id, date });
-          return json({ status, videoId }, status === "started" ? 201 : 200);
+          const status = await startPublish(env, { videoId, youtubeChannelId: id, date, lang });
+          return json({ status, videoId, lang }, status === "started" ? 201 : 200);
         }
       }
       return json({ error: "not found" }, 404);

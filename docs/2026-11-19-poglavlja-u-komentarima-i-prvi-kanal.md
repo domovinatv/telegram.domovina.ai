@@ -6,6 +6,10 @@ Datum: 19. 11. 2026. Status: **prvi kanal radi** (19. 11. 22:12): kanal „DOMOV
 poglavlja u komentarima, Workflow `Completed`. **Privremeno je vlasnik osobni račun**; kad
 stigne SIM za Domovina račun, vlasništvo se prebacuje (§7).
 
+**Engleski par izgrađen i deployan** (19. 11. kasno navečer, §8): kod u oba Workera
+(`telegram-domovina-ai`, pa `domovina-push`), provisioner zna `--lang en`. **EN kanal za
+DOMOVINA još nije stvoren**: čeka izričitu potvrdu, pa ručni test s `QkcpHsj43rE`.
+
 ## 1. Odluka
 
 U kanal ide **samo objava epizode**. Sva poglavlja idu kao **komentari ispod te objave**
@@ -104,10 +108,11 @@ Svaki link vodi na domovina.ai, nikad na YouTube.
 flowchart LR
   A["✅ bot @domovina_push_bot<br/>avatar, welcome slika"] --> B["✅ TELEGRAM_BOT_TOKEN<br/>u Workeru"]
   B --> C["✅ webhook bota<br/>/telegram/setup"]
-  C --> D["⏳ Domovina račun<br/>npm run login → TG_SESSION"]
-  D --> E["⏳ create-channel<br/>--dry-run, pa stvarno<br/>uz potvrdu"]
-  E --> F["⏳ ručni test<br/>POST …/episodes/QkcpHsj43rE"]
-  F --> G["automatski: svaka nova epizoda<br/>kroz domovina-push"]
+  C --> D["✅ npm run login → TG_SESSION<br/>privremeno osobni račun"]
+  D --> E["✅ create-channel<br/>kanal + grupa 19. 11. 22:12"]
+  E --> F["✅ ručni test QkcpHsj43rE<br/>42 poglavlja u komentarima"]
+  F --> G["✅ automatski: svaka nova epizoda<br/>kroz domovina-push"]
+  G --> H["⏳ predaja vlasništva<br/>Domovina računu (SIM)"]
 ```
 
 Koraci:
@@ -137,6 +142,9 @@ Koraci:
 ## 6. Povratak
 
 - Zaustaviti objave za jedan podcast: obrisati KV ključ `tg:podcast:<UC>` → `no_channel`.
+  Engleski par zasebno: `tg:podcast:<UC>:en`.
+- Zaustaviti sve engleske objave odjednom: u `domovina-push` maknuti EN red iz
+  `TELEGRAM_LANGS` (`src/index.ts`) i deployati; HR ostaje.
 - Ugasiti nit poglavlja: `deleteWebhook` bota; Workflow tada nakon ~5 min odustane na
   koraku „nit” (objava epizode ostaje, poglavlja ne idu).
 - Kanal i grupa se brišu samo ručno, s Domovina računa.
@@ -159,7 +167,7 @@ Koraci:
   „Transfer ownership” (traži 2FA na osobnom računu), zatim novi `npm run login` s Domovina
   računom i zatvoriti sesiju „domovina-automatic” na osobnom.
 
-## 8. Engleski par (odluka 19. 11., nije izgrađeno)
+## 8. Engleski par (odluka 19. 11., izgrađeno i deployano isti dan)
 
 | # | Odluka |
 |---|---|
@@ -167,15 +175,44 @@ Koraci:
 | E2 | **Zaseban izbor podcasta**: HR kanal ne povlači EN automatski; EN par se stvara samo kad podcast pristane i na njega. |
 | E3 | Tekst iz `article.en.json` / `summary.en.json` (nisu inline u `episode.json`, čitaju se iz `data/<id>/`), poruka „N chapters in the comments below”, linkovi `domovina.ai/v/<id>/en` i `domovina.ai/v/<id>/t/<sec>/en` (provjereno: obje rute daju engleski og:title). |
 | E4 | EN Workflow čeka prijevod (stiže nakon HR članka, za Magisterium kanale i satima kasnije): `step.sleep` + provjera do 48 h, pa odustane bez slanja. |
-| E5 | Vlasnik koji u postavkama kanala isključi `englishTranslation` utišava EN kanal; domovina-push tu postavku zna i prosljeđuje je u RPC. |
+| E5 | Vlasnik koji u postavkama kanala isključi `english_translation` utišava EN kanal; domovina-push tu postavku zna i prosljeđuje je u RPC. |
 
 ```mermaid
 flowchart LR
-  P["domovina-push<br/>nova epizoda"] -->|"RPC, jezici iz postavki"| T["TelegramPublisher"]
-  T --> HR["Workflow HR<br/>odmah"]
-  T --> EN["Workflow EN<br/>čeka article.en.json do 48 h"]
+  P["domovina-push<br/>nova epizoda"] -->|"RPC bez lang"| T["TelegramPublisher"]
+  P -->|"RPC lang: en<br/>osim ako je isključen<br/>english_translation"| T
+  T --> HR["Workflow HR<br/>ep-video-UC, odmah"]
+  T --> EN["Workflow EN<br/>ep-video-UC-en<br/>čeka article.en.json do 48 h"]
   HR --> K1["DOMOVINA · domovina.ai"]
   EN --> K2["DOMOVINA · domovina.ai English"]
 ```
 
 Podcast s oba jezika troši 4 mjesta od 500 po računu (~125 podcasta).
+
+### 8.1 Kako je izgrađeno
+
+| Dio | Što |
+|---|---|
+| Mapiranje | Zaseban KV zapis `tg:podcast:<UC>:en` (HR ključ `tg:podcast:<UC>` je ostao isti, stari zapisi bez polja `lang` čitaju se kao `hr`). `PUT` odbija isti Telegram kanal za oba jezika. |
+| Rute | `GET`/`PUT /podcasts/<UC>?lang=en`, `POST /podcasts/<UC>/episodes/<id>?lang=en`; bez `lang` je hrvatski. `GET /public/podcasts/<UC>` vraća `{title, link, en}`: gornja razina je HR (stari oblik, `null` ako HR kanala nema), `en` je `{title, link}` ili `null`. |
+| RPC | `publishEpisode({videoId, youtubeChannelId, date, lang?: "en"})`. HR poziv ne šalje `lang` i dobiva isti id instance kao prije, pa nijedna stara instanca ne bi bila ponovljena. |
+| Workflow | `lang` u parametrima. EN čita oba prijevoda iz R2 u koraku `prijevod-<n>`: prva provjera odmah, pa 8 × 15 min (prve 2 h, agy prijevod traje ~5 min), pa 46 × 1 h; ukupno 48 h, ~110 koraka. Bez prijevoda Workflow završi s `skipped`, ništa ne pošalje. |
+| Sadržaj | Naslov `summary.title_en`, sažetak `abstract_en`, poglavlja `subtitle_en` po istim pravilima kao HR (sekunda iz `screenshot_timestamp`, duplikati van). **Hrvatski tekst nikad ne ide u EN kanal**: poglavlje bez `subtitle_en` je samo vrijeme + link. Prijevod bez `title_en` ili bez ijednog `subtitle_en` = još nije stigao. |
+| Poruke | „🎙 Title … 42 chapters in the comments below. Full episode: https://domovina.ai/v/<id>/en”, poglavlje „⏱ 2:15 · Subtitle” + `…/t/135/en`. |
+| domovina-push | Za svaku epizodu dva poziva, zapisi `sent:tg:<id>` i `sent:tg:en:<id>`. EN utišava `push_notifications` ili `english_translation` (`closeOff` ga gasi i kad je isključen članak ili transkript), zapis `skipped:english_translation`. Limit po ciklusu (`MAX_PER_RUN`) dijele oba jezika. |
+| Provisioner | `npm run create-channel -- <UC> --lang en --title "<Podcast> · domovina.ai English"`; naslov mora završavati s „English”, grupa je „<Podcast> · discussion”, opis na engleskom. |
+
+### 8.2 Engleski kanal za DOMOVINA (čeka potvrdu)
+
+```bash
+cd ~/git/domovinatv/telegram.domovina.ai/scripts/provision
+npm run create-channel -- UCXXhnehl2pss0uYdfLRDtyw --lang en \
+  --title "DOMOVINA · domovina.ai English" \
+  --avatar https://cdn.domovina.ai/channels/images/domovina_tv/avatar_square.jpg \
+  --dry-run
+# stvarno: ista naredba bez --dry-run, tek uz izričitu potvrdu
+curl -X POST -H "Authorization: Bearer $API_TOKEN" \
+  "https://telegram.domovina.ai/podcasts/UCXXhnehl2pss0uYdfLRDtyw/episodes/QkcpHsj43rE?lang=en"
+```
+
+`QkcpHsj43rE` već ima `article.en.json` (42 poglavlja sa `subtitle_en`), pa EN test ne čeka.

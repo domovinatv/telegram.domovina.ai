@@ -40,7 +40,17 @@ npm run create-channel -- <UC…> --title "Naziv · domovina.ai" \
   --avatar https://cdn.domovina.ai/registry/avatars/<slug>.jpg [--public <username>] [--dry-run]
 ```
 
-Ako mapiranje za `<UC…>` već postoji, skripta ga samo ispiše (nema duplikata).
+Engleski par istog podcasta (zaseban pristanak), ime mora završavati s „English”:
+
+```sh
+npm run create-channel -- <UC…> --lang en --title "Naziv · domovina.ai English" \
+  --avatar https://cdn.domovina.ai/registry/avatars/<slug>.jpg --dry-run
+```
+
+Grupa dobiva ime „Naziv · discussion” i engleski opis; mapiranje ide u
+`tg:podcast:<UC…>:en` (`PUT …?lang=en`).
+
+Ako mapiranje za `<UC…>` (na tom jeziku) već postoji, skripta ga samo ispiše (nema duplikata).
 Pokreće se jednom, ručno, kad podcast pristane: postojanje kanala je zapis
 pristanka. Od tada epizode u kanal šalje `domovina-push` kroz Worker.
 

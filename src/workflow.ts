@@ -8,11 +8,17 @@
 //
 // Kanal bez grupe za raspravu (discussionChatId null) dobiva poglavlja izravno
 // u kanal, kao prije.
+//
+// Engleski kanal (lang "en") čita prijevod iz data/<id>/article.en.json i
+// summary.en.json. Prijevod stiže nakon hrvatskog članka (za Magisterium kanale
+// i satima kasnije), pa Workflow čeka do 48 h (step.sleep, ne drži ništa
+// otvoreno) i onda odustane bez slanja.
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import { episodeContent } from "./episode";
+import { englishContent, episodeContent, type EpisodeContent } from "./episode";
 import { chapterMessage, chapterUrl, episodeMessage, episodeUrl } from "./messages";
+import type { Lang } from "./podcasts";
 import { sendMessage } from "./telegram";
 import { getThreadRoot } from "./threads";
 
@@ -20,6 +26,8 @@ export interface PublishParams {
   videoId: string;
   chatId: string;
   discussionChatId?: string | null;
+  /** Bez njega "hr" (instance pokrenute prije engleskog). */
+  lang?: Lang;
 }
 
 const RETRY = { retries: { limit: 5, delay: "10 seconds" as const, backoff: "exponential" as const }, timeout: "1 minute" as const };
@@ -31,16 +39,58 @@ const THREAD_WAIT = { retries: { limit: 6, delay: "5 seconds" as const, backoff:
 /** Chat prima ~20 poruka u minuti od jednog bota. */
 const PACE = "3 seconds";
 
-export class PublishEpisode extends WorkflowEntrypoint<Env, PublishParams> {
-  async run(event: WorkflowEvent<PublishParams>, step: WorkflowStep): Promise<{ chapters: number; inThread: boolean }> {
-    const { videoId, chatId, discussionChatId = null } = event.payload;
+/**
+ * Raspored provjera engleskog prijevoda: prva odmah, pa svakih 15 min prva
+ * 2 h (agy prijevod traje ~5 min), pa svaki sat do 48 h ukupno.
+ */
+type Duration = Parameters<WorkflowStep["sleep"]>[1];
+export const TRANSLATION_WAITS: readonly Duration[] = [
+  ...Array.from({ length: 8 }, (): Duration => "15 minutes"),
+  ...Array.from({ length: 46 }, (): Duration => "1 hour"),
+];
 
-    const content = await step.do("episode.json", async () => {
-      const object = await this.env.CDN.get(`data/${videoId}/episode.json`);
-      const parsed = object ? episodeContent(await object.json()) : null;
-      if (!parsed) throw new NonRetryableError(`episode.json za ${videoId} nema članak`);
-      return parsed;
-    });
+async function r2Json(bucket: R2Bucket, key: string): Promise<unknown> {
+  const object = await bucket.get(key);
+  if (!object) return null;
+  try {
+    return await object.json();
+  } catch {
+    return null; // napola upisan ili pokvaren JSON: kao da ga još nema
+  }
+}
+
+export class PublishEpisode extends WorkflowEntrypoint<Env, PublishParams> {
+  async run(
+    event: WorkflowEvent<PublishParams>,
+    step: WorkflowStep,
+  ): Promise<{ chapters: number; inThread: boolean; lang: Lang; skipped?: string }> {
+    const { videoId, chatId, discussionChatId = null, lang = "hr" } = event.payload;
+
+    let content: EpisodeContent | null = null;
+    if (lang === "en") {
+      for (let attempt = 0; attempt <= TRANSLATION_WAITS.length; attempt++) {
+        if (attempt > 0) await step.sleep(`čekam-prijevod-${attempt}`, TRANSLATION_WAITS[attempt - 1]!);
+        content = await step.do(`prijevod-${attempt}`, RETRY, async () =>
+          englishContent(
+            await r2Json(this.env.CDN, `data/${videoId}/article.en.json`),
+            await r2Json(this.env.CDN, `data/${videoId}/summary.en.json`),
+          ),
+        );
+        if (content) break;
+      }
+      if (!content) {
+        console.warn(JSON.stringify({ event: "translation_timeout", videoId, chatId }));
+        return { chapters: 0, inThread: false, lang, skipped: "nema engleskog prijevoda ni nakon 48 h" };
+      }
+    } else {
+      content = await step.do("episode.json", async () => {
+        const object = await this.env.CDN.get(`data/${videoId}/episode.json`);
+        const parsed = object ? episodeContent(await object.json()) : null;
+        if (!parsed) throw new NonRetryableError(`episode.json za ${videoId} nema članak`);
+        return parsed;
+      });
+    }
+    const episode = content;
 
     const send = async (target: string, text: string, previewUrl: string, silent: boolean, replyTo?: number): Promise<number> => {
       const result = await sendMessage(this.env.TELEGRAM_BOT_TOKEN, target, text, { previewUrl, silent, replyTo, tries: 2 });
@@ -52,12 +102,12 @@ export class PublishEpisode extends WorkflowEntrypoint<Env, PublishParams> {
     };
 
     const inThread = Boolean(discussionChatId);
-    const header = episodeMessage(videoId, content.title, content.abstract, content.chapters.length, inThread);
-    const postId = await step.do("header", RETRY, () => send(chatId, header, episodeUrl(videoId), false));
+    const header = episodeMessage(videoId, episode.title, episode.abstract, episode.chapters.length, inThread, lang);
+    const postId = await step.do("header", RETRY, () => send(chatId, header, episodeUrl(videoId, lang), false));
 
     let target = chatId;
     let replyTo: number | undefined;
-    if (discussionChatId && content.chapters.length > 0) {
+    if (discussionChatId && episode.chapters.length > 0) {
       const root = await step.do("nit", THREAD_WAIT, async () => {
         const found = await getThreadRoot(this.env.PODCASTS, chatId, postId);
         if (!found) throw new Error(`proslijeđena objava ${chatId}/${postId} još nije stigla`);
@@ -70,12 +120,18 @@ export class PublishEpisode extends WorkflowEntrypoint<Env, PublishParams> {
       replyTo = root.messageId;
     }
 
-    for (const chapter of content.chapters) {
+    for (const chapter of episode.chapters) {
       await step.sleep(`pauza-${chapter.sec}`, PACE);
       await step.do(`poglavlje-${chapter.sec}`, RETRY, () =>
-        send(target, chapterMessage(videoId, chapter.sec, chapter.title), chapterUrl(videoId, chapter.sec), true, replyTo),
+        send(
+          target,
+          chapterMessage(videoId, chapter.sec, chapter.title, lang),
+          chapterUrl(videoId, chapter.sec, lang),
+          true,
+          replyTo,
+        ),
       );
     }
-    return { chapters: content.chapters.length, inThread };
+    return { chapters: episode.chapters.length, inThread, lang };
   }
 }

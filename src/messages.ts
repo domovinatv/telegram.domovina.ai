@@ -1,12 +1,16 @@
-// Tekst poruka u kanalu podcasta. Svaki link vodi na domovina.ai, nikad na
-// YouTube (isto pravilo kao EPUB i ostali artefakti koji putuju sami).
+// Tekst poruka u kanalu podcasta, hrvatski ili engleski. Svaki link vodi na
+// domovina.ai, nikad na YouTube (isto pravilo kao EPUB i ostali artefakti koji
+// putuju sami). Engleski kanal vodi na engleske rute (`…/en`), čiji og:title je
+// engleski.
 
+import type { Lang } from "./podcasts";
 import { esc } from "./telegram";
 
 const SITE = "https://domovina.ai";
 
-export const episodeUrl = (id: string) => `${SITE}/v/${id}`;
-export const chapterUrl = (id: string, sec: number) => `${SITE}/v/${id}/t/${sec}`;
+const suffix = (lang: Lang) => (lang === "en" ? "/en" : "");
+export const episodeUrl = (id: string, lang: Lang = "hr") => `${SITE}/v/${id}${suffix(lang)}`;
+export const chapterUrl = (id: string, sec: number, lang: Lang = "hr") => `${SITE}/v/${id}/t/${sec}${suffix(lang)}`;
 
 /** Sekunde kao "M:SS" ili "H:MM:SS", isti oblik kao og:title stranice. */
 export function clock(sec: number): string {
@@ -24,16 +28,39 @@ export function chapterWord(n: number): string {
   return "poglavlja";
 }
 
+const TEXT = {
+  hr: {
+    count: (n: number) => `${n} ${chapterWord(n)}`,
+    inThread: "u komentarima ispod objave",
+    below: "slijedi u nastavku",
+    full: "Cijela epizoda",
+  },
+  en: {
+    count: (n: number) => `${n} ${n === 1 ? "chapter" : "chapters"}`,
+    inThread: "in the comments below",
+    below: "below",
+    full: "Full episode",
+  },
+} as const;
+
 /** Prva poruka epizode: naslov, kratki sažetak i link na stranicu epizode. */
-export function episodeMessage(id: string, title: string, abstract: string, chapters: number, inThread = false): string {
+export function episodeMessage(
+  id: string,
+  title: string,
+  abstract: string,
+  chapters: number,
+  inThread = false,
+  lang: Lang = "hr",
+): string {
+  const t = TEXT[lang];
   const lines = [`🎙 <b>${esc(title)}</b>`];
   if (abstract) lines.push("", esc(abstract.length > 600 ? `${abstract.slice(0, 600)}…` : abstract));
-  const where = inThread ? "u komentarima ispod objave" : "slijedi u nastavku";
-  lines.push("", `${chapters > 0 ? `${chapters} ${chapterWord(chapters)} ${where}. ` : ""}Cijela epizoda: ${esc(episodeUrl(id))}`);
+  const where = inThread ? t.inThread : t.below;
+  lines.push("", `${chapters > 0 ? `${t.count(chapters)} ${where}. ` : ""}${t.full}: ${esc(episodeUrl(id, lang))}`);
   return lines.join("\n");
 }
 
-export function chapterMessage(id: string, sec: number, title: string): string {
+export function chapterMessage(id: string, sec: number, title: string, lang: Lang = "hr"): string {
   const name = title ? ` · ${esc(title)}` : "";
-  return `⏱ <b>${clock(sec)}</b>${name}\n${esc(chapterUrl(id, sec))}`;
+  return `⏱ <b>${clock(sec)}</b>${name}\n${esc(chapterUrl(id, sec, lang))}`;
 }

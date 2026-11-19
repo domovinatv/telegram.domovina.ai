@@ -1,8 +1,12 @@
 // Telegram kanal + grupa za raspravu za JEDAN podcast (MTProto, teleproto).
 //
 //   npm run create-channel -- <YouTube channel_id UC…> --title "Naziv · domovina.ai"
-//                              [--avatar <url>] [--about "opis"] [--public <username>]
+//                              [--lang hr|en] [--avatar <url>] [--about "opis"] [--public <username>]
 //                              [--slow 10] [--dry-run] [--json]
+//
+// --lang en stvara ENGLESKI par („Naziv · domovina.ai English” + „Naziv · discussion”,
+// engleski opis) i upisuje ga kao `?lang=en`. Zaseban je pristanak (odluka E2):
+// HR kanal ne povlači EN, a EN se stvara samo kad ga podcast izričito želi.
 //
 // Zašto MTProto: Bot API nema metodu za stvaranje grupe ni kanala. Bot domovina.ai
 // (TG_BOT_USERNAME) samo objavljuje u kanal u koji ga ovdje promoviramo u admina.
@@ -41,13 +45,13 @@ const positional: string[] = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]!;
   if (a === "--dry-run" || a === "--json") flags.set(a, true);
-  else if (["--title", "--avatar", "--about", "--public", "--slow"].includes(a)) flags.set(a, argv[++i] ?? "");
+  else if (["--title", "--lang", "--avatar", "--about", "--public", "--slow"].includes(a)) flags.set(a, argv[++i] ?? "");
   else positional.push(a);
 }
 
 const log = (...parts: unknown[]) => console.error(...parts);
 const usage =
-  'Upotreba: npm run create-channel -- <UC…> --title "Naziv · domovina.ai" [--avatar <url>] [--about "…"] [--public <username>] [--slow 10] [--dry-run] [--json]';
+  'Upotreba: npm run create-channel -- <UC…> --title "Naziv · domovina.ai" [--lang hr|en] [--avatar <url>] [--about "…"] [--public <username>] [--slow 10] [--dry-run] [--json]';
 
 const youtubeChannelId = positional[0] ?? "";
 if (!/^UC[A-Za-z0-9_-]{22}$/.test(youtubeChannelId)) {
@@ -59,11 +63,24 @@ if (!title) {
   log(`Nedostaje --title.\n${usage}`);
   process.exit(1);
 }
-const discussionTitle = `${title.replace(/\s*·\s*domovina\.ai$/, "")} · rasprava`;
+const lang = String(flags.get("--lang") ?? "hr");
+if (lang !== "hr" && lang !== "en") {
+  log(`Nevaljan --lang '${lang}' — hr ili en.\n${usage}`);
+  process.exit(1);
+}
+if (lang === "en" && !/English$/.test(title)) {
+  log(`Engleski kanal se zove „<Podcast> · domovina.ai English”; --title '${title}' ne završava s „English”.`);
+  process.exit(1);
+}
+const podcastName = title.replace(/\s*·\s*domovina\.ai(\s+English)?$/, "");
+const discussionTitle = `${podcastName} · ${lang === "en" ? "discussion" : "rasprava"}`;
 const avatarUrl = (flags.get("--avatar") as string | undefined) || null;
 const about =
   (flags.get("--about") as string | undefined) ||
-  "Poglavlja svake nove epizode s domovina.ai: svaka poruka vodi točno na trenutak u snimci.";
+  (lang === "en"
+    ? "Every new episode from domovina.ai in English, chapters in the comments: each link opens the exact moment in the recording."
+    : "Poglavlja svake nove epizode s domovina.ai: svaka poruka vodi točno na trenutak u snimci.");
+const query = lang === "en" ? "?lang=en" : "";
 const publicUsername = (flags.get("--public") as string | undefined) || null;
 if (publicUsername && !/^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$/.test(publicUsername)) {
   log(`Nevaljan Telegram username '${publicUsername}' — 5–32 znaka, [a-z0-9_], počinje slovom.`);
@@ -90,6 +107,7 @@ function apiToken(): string {
 
 interface PodcastChat {
   youtubeChannelId: string;
+  lang?: "hr" | "en";
   chatId: string;
   discussionChatId: string | null;
   link: string;
@@ -98,7 +116,7 @@ interface PodcastChat {
 }
 
 async function existingMapping(token: string): Promise<PodcastChat | null> {
-  const response = await fetch(`${BASE}/podcasts/${youtubeChannelId}`, {
+  const response = await fetch(`${BASE}/podcasts/${youtubeChannelId}${query}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (response.status === 404) return null;
@@ -107,7 +125,7 @@ async function existingMapping(token: string): Promise<PodcastChat | null> {
 }
 
 async function storeMapping(token: string, chat: PodcastChat): Promise<void> {
-  const response = await fetch(`${BASE}/podcasts/${youtubeChannelId}`, {
+  const response = await fetch(`${BASE}/podcasts/${youtubeChannelId}${query}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(chat),
@@ -123,13 +141,14 @@ function emit(chat: PodcastChat): void {
 const token = apiToken();
 const existing = await existingMapping(token);
 if (existing) {
-  log(`✓ ${youtubeChannelId} već ima Telegram: ${existing.title} (${existing.chatId}) ${existing.link}`);
+  log(`✓ ${youtubeChannelId} već ima ${lang.toUpperCase()} Telegram: ${existing.title} (${existing.chatId}) ${existing.link}`);
   emit(existing);
   process.exit(0);
 }
 
 if (dryRun) {
-  log(`▸ [dry-run] stvorio bih kanal „${title}” + grupu „${discussionTitle}” za ${youtubeChannelId}`);
+  log(`▸ [dry-run] stvorio bih ${lang.toUpperCase()} kanal „${title}” + grupu „${discussionTitle}” za ${youtubeChannelId}`);
+  log(`  opis: ${about}`);
   log(`  avatar: ${avatarUrl ?? "-"} · ${publicUsername ? `javni @${publicUsername}` : "privatni invite link"} · slow ${slowSeconds}s`);
   process.exit(0);
 }
@@ -246,6 +265,7 @@ await client.disconnect();
 // 8) mapiranje u KV Workera
 const chat: PodcastChat = {
   youtubeChannelId,
+  lang,
   chatId: botApiId(channel),
   discussionChatId: botApiId(group),
   link,
@@ -257,7 +277,7 @@ try {
   log(`  ✓ mapiranje upisano u Worker (${BASE})`);
 } catch (error) {
   // Kanal postoji, a Worker ga ne zna: bez ovog ispisa idući run bi stvorio duplikat.
-  log(`  ❌ ${String(error)}\n  Upiši ručno: curl -X PUT ${BASE}/podcasts/${youtubeChannelId} -H 'Authorization: Bearer …' -d '${JSON.stringify(chat)}'`);
+  log(`  ❌ ${String(error)}\n  Upiši ručno: curl -X PUT '${BASE}/podcasts/${youtubeChannelId}${query}' -H 'Authorization: Bearer …' -d '${JSON.stringify(chat)}'`);
   process.exit(2);
 }
 
