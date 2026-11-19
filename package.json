@@ -2,7 +2,7 @@
   "name": "telegram.domovina.ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Telegram kanal po podcastu za domovina.ai: Cloudflare Worker (Bot API) + MTProto provisioner + petlja poglavlja",
+  "description": "Telegram kanal po podcastu za domovina.ai: Cloudflare Worker (Bot API + Workflow) i MTProto provisioner; zove ga domovina-push",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -10,12 +10,15 @@
     "types": "wrangler types",
     "typecheck": "tsc --noEmit",
     "tail": "wrangler tail",
-    "share": "node --experimental-strip-types scripts/share-chapters.ts"
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "5.9.3",
+    "vitest": "3.2.4",
     "wrangler": "4.126.0"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "license": "MIT"
 }

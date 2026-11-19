@@ -1,6 +1,6 @@
 // telegram.domovina.ai — Telegram kanal po podcastu.
 //
-// Podcast koji pristane (telegram.opt_in u registryju fetch.domovina.tv) dobiva
+// Podcast koji pristane (kanal se tada stvara ručno, scripts/provision) dobiva
 // vlastiti Telegram kanal + grupu za raspravu. Stvara ih MTProto provisioner na
 // Macu (scripts/provision), jer Bot API ne može stvoriti ni kanal ni grupu. Ovaj
 // Worker pamti mapiranje i objavljuje u kanal kroz bota domovina.ai.
@@ -9,16 +9,13 @@
 //   GET  /public/podcasts/{UC…}          {title, link} za gumb „Pridruži se” na domovina.ai (javno, CORS)
 //   GET  /podcasts/{UC…}                 puno mapiranje (bearer)
 //   PUT  /podcasts/{UC…}                 upis mapiranja; zove ga provisioner (bearer)
-//   POST /podcasts/{UC…}/episode         {id, title, abstract?, chapters?} prva poruka epizode (bearer)
-//   POST /podcasts/{UC…}/chapter         {id, sec, title} jedno poglavlje, tiho (bearer)
-//
-// Jedno poglavlje po zahtjevu: epizoda ima 30–46 poglavlja, a kanal prima ~20
-// poruka u minuti. Tempo drži petlja (scripts/share-chapters.ts), ne waitUntil
-// koji runtime reže nakon 30 s.
+//   POST /podcasts/{UC…}/episodes/{videoId}  ručno pokreni objavu epizode (bearer)
 
-import { chapterMessage, chapterUrl, episodeMessage, episodeUrl } from "./messages";
 import { getPodcastChat, isYoutubeChannelId, putPodcastChat } from "./podcasts";
-import { sendMessage } from "./telegram";
+import { startPublish } from "./publisher";
+
+export { TelegramPublisher } from "./publisher";
+export { PublishEpisode } from "./workflow";
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers } });
@@ -44,32 +41,6 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
   } catch {
     return null;
   }
-}
-
-async function handlePost(youtubeChannelId: string, action: string, request: Request, env: Env): Promise<Response> {
-  if (!env.TELEGRAM_BOT_TOKEN) return json({ error: "TELEGRAM_BOT_TOKEN nije postavljen" }, 503);
-  const podcast = await getPodcastChat(env.PODCASTS, youtubeChannelId);
-  if (!podcast) return json({ error: "podcast nema Telegram kanal", youtubeChannelId }, 404);
-  const body = await readJson(request);
-  if (!body || !isVideoId(body.id)) return json({ error: "id mora biti YouTube id epizode" }, 400);
-  const title = typeof body.title === "string" ? body.title.trim().slice(0, 300) : "";
-
-  if (action === "episode") {
-    const abstract = typeof body.abstract === "string" ? body.abstract.trim() : "";
-    const chapters = Number.isInteger(body.chapters) ? (body.chapters as number) : 0;
-    const sent = await sendMessage(env.TELEGRAM_BOT_TOKEN, podcast.chatId, episodeMessage(body.id, title, abstract, chapters), {
-      previewUrl: episodeUrl(body.id),
-    });
-    return json({ sent: sent.ok, id: body.id, error: sent.description }, sent.ok ? 201 : 502);
-  }
-
-  const sec = Number(body.sec);
-  if (!Number.isInteger(sec) || sec < 0) return json({ error: "sec mora biti cijeli broj sekundi" }, 400);
-  const sent = await sendMessage(env.TELEGRAM_BOT_TOKEN, podcast.chatId, chapterMessage(body.id, sec, title), {
-    previewUrl: chapterUrl(body.id, sec),
-    silent: true,
-  });
-  return json({ sent: sent.ok, id: body.id, sec, error: sent.description }, sent.ok ? 201 : 502);
 }
 
 export default {
@@ -103,8 +74,12 @@ export default {
           console.log(JSON.stringify({ event: "podcast_chat_stored", youtubeChannelId: id, chatId: stored.chatId }));
           return json(stored, 201);
         }
-        if ((action === "episode" || action === "chapter") && request.method === "POST") {
-          return await handlePost(id, action, request, env);
+        // Ručno pokretanje (prvi kanal, test). Normalno epizode šalje domovina-push kroz RPC.
+        const videoId = pathname.split("/")[4] ?? "";
+        if (action === "episodes" && request.method === "POST" && isVideoId(videoId)) {
+          const date = new Date().toISOString().slice(0, 10);
+          const status = await startPublish(env, { videoId, youtubeChannelId: id, date });
+          return json({ status, videoId }, status === "started" ? 201 : 200);
         }
       }
       return json({ error: "not found" }, 404);

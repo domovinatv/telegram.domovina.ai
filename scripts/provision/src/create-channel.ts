@@ -21,8 +21,7 @@
 // Mapiranje je ključano YouTube channel_id-em, ne slugom: Tier 2 epizode žive u
 // `_unlisted/`, pa im je slug iz pipelinea doslovno "_unlisted".
 //
-// Izlaz: ljudski log na stderr; uz --json na stdout ide JEDAN JSON redak (PodcastChat),
-// koji čita scripts/share-chapters.ts.
+// Izlaz: ljudski log na stderr; uz --json na stdout ide JEDAN JSON redak (PodcastChat).
 
 import "dotenv/config";
 import { readFileSync } from "node:fs";

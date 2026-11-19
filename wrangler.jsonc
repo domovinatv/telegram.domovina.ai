@@ -15,5 +15,13 @@
     { "binding": "PODCASTS", "id": "fca9bce8cc9a4a17aa7a5ed538e74e57", "preview_id": "e072e62aae72404db7224de5532d2f85" }
   ],
 
+  // Objava epizode: poruka + poglavlja s pauzom, memoizirano po koraku.
+  "workflows": [
+    { "name": "telegram-publish-episode", "binding": "PUBLISH", "class_name": "PublishEpisode" }
+  ],
+
+  // episode.json se čita izravno iz R2 (kao domovina-push): CDN cachira 404.
+  "r2_buckets": [{ "binding": "CDN", "bucket_name": "cdn-domovina-ai" }],
+
   "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
 }

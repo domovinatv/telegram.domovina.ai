@@ -41,10 +41,8 @@ npm run create-channel -- <UC…> --title "Naziv · domovina.ai" \
 ```
 
 Ako mapiranje za `<UC…>` već postoji, skripta ga samo ispiše (nema duplikata).
-Ne zove se ručno u normalnom radu: `scripts/share-chapters.ts --provision` je
-pozove za podcast s pristankom (`telegram.opt_in` u registryju
-`fetch.domovina.tv/data/podcasts_registry.json`) kad mu stigne prva nova
-epizoda.
+Pokreće se jednom, ručno, kad podcast pristane: postojanje kanala je zapis
+pristanka. Od tada epizode u kanal šalje `domovina-push` kroz Worker.
 
 ## Limiti (provjeriti na prvom stvarnom računu)
 
